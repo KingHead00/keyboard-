@@ -264,11 +264,41 @@
         }
     }
 
+    function updateStats() {
+        let wpm = Math.round((((charIndex - mistakes) / 5) / (maxTime - timeLeft)) * 60);
+        wpm = wpm < 0 || !wpm || wpm === Infinity ? 0 : wpm;
+        wpmSpan.innerText = wpm;
+
+        let acc = Math.round(((charIndex - mistakes) / charIndex) * 100);
+        accuracySpan.innerText = charIndex === 0 ? 100 : (acc < 0 ? 0 : acc);
+    }
+
+    function handleBackspace() {
+        if (timeLeft <= 0) return;
+        if (charIndex > 0) {
+            let characters = textDisplay.querySelectorAll('span');
+            characters[charIndex].classList.remove('current');
+            charIndex--;
+            if (characters[charIndex].classList.contains('incorrect')) {
+                mistakes--;
+            }
+            characters[charIndex].classList.remove('correct', 'incorrect');
+            characters[charIndex].classList.add('current');
+            scrollToCurrent();
+            updateStats();
+        }
+    }
+
+    function handleKeydown(e) {
+        if (e.key === 'Backspace') {
+            e.preventDefault();
+            handleBackspace();
+        }
+    }
+
     function initTyping() {
         let characters = textDisplay.querySelectorAll('span');
         let typedChar = inputField.value.split("")[inputField.value.length - 1];
-        let isBackspace = inputField.value.length < (initTyping.lastLength || 0);
-        initTyping.lastLength = inputField.value.length;
 
         if (timeLeft > 0) {
             if (!isTyping) {
@@ -276,17 +306,7 @@
                 isTyping = true;
             }
 
-            if (isBackspace) {
-                if (charIndex > 0) {
-                    characters[charIndex].classList.remove('current');
-                    charIndex--;
-                    if (characters[charIndex].classList.contains('incorrect')) {
-                        mistakes--;
-                    }
-                    characters[charIndex].classList.remove('correct', 'incorrect');
-                    characters[charIndex].classList.add('current');
-                }
-            } else if (typedChar != null) {
+            if (typedChar != null) {
                 if (characters[charIndex].innerText === typedChar) {
                     characters[charIndex].classList.add('correct');
                 } else {
@@ -306,15 +326,8 @@
 
             // Clear the input field so it never grows unbounded (text is infinite)
             inputField.value = "";
-            initTyping.lastLength = 0;
 
-            // Calculations
-            let wpm = Math.round((((charIndex - mistakes) / 5) / (maxTime - timeLeft)) * 60);
-            wpm = wpm < 0 || !wpm || wpm === Infinity ? 0 : wpm;
-            wpmSpan.innerText = wpm;
-
-            let acc = Math.round(((charIndex - mistakes) / charIndex) * 100);
-            accuracySpan.innerText = charIndex === 0 ? 100 : (acc < 0 ? 0 : acc);
+            updateStats();
         } else {
             clearInterval(timer);
             inputField.value = "";
@@ -337,7 +350,6 @@
         charIndex = 0;
         mistakes = 0;
         isTyping = false;
-        initTyping.lastLength = 0;
         inputField.value = "";
         timeSpan.innerText = timeLeft;
         wpmSpan.innerText = 0;
@@ -356,6 +368,7 @@
 
     // Event Listeners
     inputField.addEventListener('input', initTyping);
+    inputField.addEventListener('keydown', handleKeydown);
     restartBtn.addEventListener('click', resetGame);
     timerOptions.forEach(btn => {
         btn.addEventListener('click', () => selectTimer(parseInt(btn.dataset.time, 10)));
