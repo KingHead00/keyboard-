@@ -33,10 +33,41 @@
 
         #stats {
             display: flex;
+            align-items: center;
             gap: 20px;
             font-size: 1.5rem;
             color: var(--main-color);
             margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        #timer-select {
+            display: flex;
+            gap: 6px;
+            font-size: 0.95rem;
+        }
+
+        .timer-option {
+            background: none;
+            border: 2px solid var(--text-color);
+            color: var(--text-color);
+            padding: 4px 10px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .timer-option:hover {
+            color: var(--sub-color);
+            border-color: var(--sub-color);
+        }
+
+        .timer-option.active {
+            color: var(--bg-color);
+            background-color: var(--main-color);
+            border-color: var(--main-color);
         }
 
         #text-display {
@@ -47,6 +78,8 @@
             position: relative;
             user-select: none;
             margin-bottom: 30px;
+            height: 7.2rem;
+            overflow: hidden;
         }
 
         .char {
@@ -112,6 +145,12 @@
         <div>WPM: <span id="wpm">0</span></div>
         <div>Accuracy: <span id="accuracy">100</span>%</div>
         <div>Time: <span id="time">30</span>s</div>
+        <div id="timer-select">
+            <button class="timer-option" data-time="15">15s</button>
+            <button class="timer-option active" data-time="30">30s</button>
+            <button class="timer-option" data-time="60">60s</button>
+            <button class="timer-option" data-time="120">120s</button>
+        </div>
     </div>
 
     <div id="text-display"></div>
@@ -121,13 +160,20 @@
 </div>
 
 <script>
-    const quotes = [
-        "The quick brown fox jumps over the lazy dog.",
-        "Success is not final, failure is not fatal: it is the courage to continue that counts.",
-        "To be or not to be, that is the question whether tis nobler in the mind to suffer.",
-        "All that glitters is not gold, often have you heard that told.",
-        "In the middle of difficulty lies opportunity, look closer and find it."
-    ];
+    // Word pool used to generate an endless stream of text
+    const wordPool = (
+        "the quick brown fox jumps over lazy dog success is not final failure " +
+        "not fatal it courage to continue that counts be or to that question " +
+        "whether tis nobler in mind suffer all glitters gold often have you " +
+        "heard told middle of difficulty lies opportunity look closer and find " +
+        "it time flies like an arrow fruit banana practice makes perfect every " +
+        "moment counts toward mastery keep calm carry on knowledge power stay " +
+        "focused stay curious never give up small steps lead big changes clear " +
+        "mind sharp fingers steady pace wins race patience discipline consistency " +
+        "words flow like river language beauty precision speed accuracy balance " +
+        "focus rhythm flow state deep work quiet room bright screen soft click " +
+        "typing test challenge fun learning growth improve daily habit build skill"
+    ).split(" ");
 
     const textDisplay = document.getElementById('text-display');
     const inputField = document.getElementById('input-field');
@@ -135,6 +181,7 @@
     const accuracySpan = document.getElementById('accuracy');
     const timeSpan = document.getElementById('time');
     const restartBtn = document.getElementById('restart-btn');
+    const timerOptions = document.querySelectorAll('.timer-option');
 
     let timer = null;
     let maxTime = 30;
@@ -143,29 +190,92 @@
     let charIndex = 0;
     let mistakes = 0;
 
+    // How many extra words to keep buffered ahead of the cursor
+    const BUFFER_WORDS = 40;
+
+    function randomWord() {
+        return wordPool[Math.floor(Math.random() * wordPool.length)];
+    }
+
+    function appendWords(count) {
+        // If the display already has content, add a space before new words
+        let needsLeadingSpace = textDisplay.childElementCount > 0;
+        let fragment = document.createDocumentFragment();
+        for (let w = 0; w < count; w++) {
+            if (needsLeadingSpace || w > 0) {
+                let spaceSpan = document.createElement('span');
+                spaceSpan.className = 'char';
+                spaceSpan.innerText = ' ';
+                fragment.appendChild(spaceSpan);
+            }
+            const word = randomWord();
+            word.split("").forEach(ch => {
+                let span = document.createElement('span');
+                span.className = 'char';
+                span.innerText = ch;
+                fragment.appendChild(span);
+            });
+        }
+        textDisplay.appendChild(fragment);
+    }
+
+    function ensureBuffer() {
+        const characters = textDisplay.querySelectorAll('span');
+        // If we're getting close to the end of the generated text, add more
+        if (characters.length - charIndex < 60) {
+            appendWords(BUFFER_WORDS);
+        }
+    }
+
+    function trimPastText() {
+        // Remove characters well behind the cursor so the DOM doesn't grow forever
+        const KEEP_BEHIND = 200;
+        if (charIndex > KEEP_BEHIND) {
+            const characters = textDisplay.querySelectorAll('span');
+            const removeCount = charIndex - KEEP_BEHIND;
+            for (let i = 0; i < removeCount; i++) {
+                if (characters[i]) characters[i].remove();
+            }
+            charIndex -= removeCount;
+        }
+    }
+
     function initText() {
-        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
         textDisplay.innerHTML = "";
-        randomQuote.split("").forEach(char => {
-            let span = `<span>${char}</span>`;
-            textDisplay.innerHTML += span;
-        });
-        textDisplay.querySelectorAll('span')[0].classList.add('current', 'char');
-        // Add char class to all spans
-        textDisplay.querySelectorAll('span').forEach(s => s.classList.add('char'));
+        appendWords(BUFFER_WORDS);
+        const spans = textDisplay.querySelectorAll('span');
+        spans[0].classList.add('current');
+        scrollToCurrent();
+    }
+
+    function scrollToCurrent() {
+        const current = textDisplay.querySelector('.current');
+        if (current) {
+            const containerTop = textDisplay.getBoundingClientRect().top;
+            const currentTop = current.getBoundingClientRect().top;
+            const offset = currentTop - containerTop;
+            const lineHeight = 2.4 * 16; // matches CSS line-height in px (approx, 1rem = 16px)
+            if (offset > lineHeight) {
+                textDisplay.scrollTop += lineHeight;
+            } else if (offset < 0) {
+                textDisplay.scrollTop = Math.max(0, textDisplay.scrollTop + offset);
+            }
+        }
     }
 
     function initTyping() {
-        const characters = textDisplay.querySelectorAll('span');
-        let typedChar = inputField.value.split("")[charIndex];
+        let characters = textDisplay.querySelectorAll('span');
+        let typedChar = inputField.value.split("")[inputField.value.length - 1];
+        let isBackspace = inputField.value.length < (initTyping.lastLength || 0);
+        initTyping.lastLength = inputField.value.length;
 
-        if (charIndex < characters.length && timeLeft > 0) {
+        if (timeLeft > 0) {
             if (!isTyping) {
                 timer = setInterval(startTimer, 1000);
                 isTyping = true;
             }
 
-            if (typedChar == null) { // Backspace
+            if (isBackspace) {
                 if (charIndex > 0) {
                     characters[charIndex].classList.remove('current');
                     charIndex--;
@@ -175,7 +285,7 @@
                     characters[charIndex].classList.remove('correct', 'incorrect');
                     characters[charIndex].classList.add('current');
                 }
-            } else {
+            } else if (typedChar != null) {
                 if (characters[charIndex].innerText === typedChar) {
                     characters[charIndex].classList.add('correct');
                 } else {
@@ -184,10 +294,18 @@
                 }
                 characters[charIndex].classList.remove('current');
                 charIndex++;
-                if (charIndex < characters.length) {
+                ensureBuffer();
+                trimPastText();
+                characters = textDisplay.querySelectorAll('span');
+                if (characters[charIndex]) {
                     characters[charIndex].classList.add('current');
                 }
+                scrollToCurrent();
             }
+
+            // Clear the input field so it never grows unbounded (text is infinite)
+            inputField.value = "";
+            initTyping.lastLength = 0;
 
             // Calculations
             let wpm = Math.round((((charIndex - mistakes) / 5) / (maxTime - timeLeft)) * 60);
@@ -208,26 +326,39 @@
             timeSpan.innerText = timeLeft;
         } else {
             clearInterval(timer);
+            inputField.blur();
         }
     }
 
     function resetGame() {
-        initText();
         clearInterval(timer);
         timeLeft = maxTime;
         charIndex = 0;
         mistakes = 0;
         isTyping = false;
+        initTyping.lastLength = 0;
         inputField.value = "";
         timeSpan.innerText = timeLeft;
         wpmSpan.innerText = 0;
         accuracySpan.innerText = 100;
+        initText();
         inputField.focus();
+    }
+
+    function selectTimer(seconds) {
+        maxTime = seconds;
+        timerOptions.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.time, 10) === seconds);
+        });
+        resetGame();
     }
 
     // Event Listeners
     inputField.addEventListener('input', initTyping);
     restartBtn.addEventListener('click', resetGame);
+    timerOptions.forEach(btn => {
+        btn.addEventListener('click', () => selectTimer(parseInt(btn.dataset.time, 10)));
+    });
     document.addEventListener('click', () => inputField.focus());
 
     // Initialize
