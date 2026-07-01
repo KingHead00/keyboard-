@@ -92,6 +92,10 @@
             color: var(--correct-color);
         }
 
+        .char.corrected {
+            color: var(--main-color);
+        }
+
         .char.incorrect {
             color: var(--error-color);
             background-color: rgba(202, 71, 84, 0.2);
@@ -282,7 +286,7 @@
             if (characters[charIndex].classList.contains('incorrect')) {
                 mistakes--;
             }
-            characters[charIndex].classList.remove('correct', 'incorrect');
+            characters[charIndex].classList.remove('correct', 'incorrect', 'corrected');
             characters[charIndex].classList.add('current');
             scrollToCurrent();
             updateStats();
@@ -308,10 +312,15 @@
 
             if (typedChar != null) {
                 if (characters[charIndex].innerText === typedChar) {
-                    characters[charIndex].classList.add('correct');
+                    if (characters[charIndex].dataset.everWrong === 'true') {
+                        characters[charIndex].classList.add('corrected');
+                    } else {
+                        characters[charIndex].classList.add('correct');
+                    }
                 } else {
                     mistakes++;
                     characters[charIndex].classList.add('incorrect');
+                    characters[charIndex].dataset.everWrong = 'true';
                 }
                 characters[charIndex].classList.remove('current');
                 charIndex++;
