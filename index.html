@@ -166,21 +166,9 @@
     <button id="restart-btn">Restart</button>
 </div>
 
+<script src="word_bank.js"></script>
 <script>
-    // Word pool used to generate an endless stream of text
-    const wordPool = (
-        "the quick brown fox jumps over lazy dog success is not final failure " +
-        "not fatal it courage to continue that counts be or to that question " +
-        "whether tis nobler in mind suffer all glitters gold often have you " +
-        "heard told middle of difficulty lies opportunity look closer and find " +
-        "it time flies like an arrow fruit banana practice makes perfect every " +
-        "moment counts toward mastery keep calm carry on knowledge power stay " +
-        "focused stay curious never give up small steps lead big changes clear " +
-        "mind sharp fingers steady pace wins race patience discipline consistency " +
-        "words flow like river language beauty precision speed accuracy balance " +
-        "focus rhythm flow state deep work quiet room bright screen soft click " +
-        "typing test challenge fun learning growth improve daily habit build skill"
-    ).split(" ");
+    // Word pool is now loaded from words.js
 
     const textDisplay = document.getElementById('text-display');
     const inputField = document.getElementById('input-field');
