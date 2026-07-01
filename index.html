@@ -149,12 +149,14 @@
     <div id="stats">
         <div>WPM: <span id="wpm">0</span></div>
         <div>Accuracy: <span id="accuracy">100</span>%</div>
+        <div>True Accuracy: <span id="true-accuracy">100</span>%</div>
         <div>Time: <span id="time">30</span>s</div>
         <div id="timer-select">
             <button class="timer-option" data-time="15">15s</button>
             <button class="timer-option active" data-time="30">30s</button>
             <button class="timer-option" data-time="60">60s</button>
             <button class="timer-option" data-time="120">120s</button>
+            <button class="timer-option" data-time="forever">∞</button>
         </div>
     </div>
 
@@ -184,6 +186,7 @@
     const inputField = document.getElementById('input-field');
     const wpmSpan = document.getElementById('wpm');
     const accuracySpan = document.getElementById('accuracy');
+    const trueAccuracySpan = document.getElementById('true-accuracy');
     const timeSpan = document.getElementById('time');
     const restartBtn = document.getElementById('restart-btn');
     const timerOptions = document.querySelectorAll('.timer-option');
@@ -191,9 +194,16 @@
     let timer = null;
     let maxTime = 30;
     let timeLeft = maxTime;
+    let isForever = false;
+    let elapsedSeconds = 0;
     let isTyping = false;
     let charIndex = 0;
     let mistakes = 0;
+
+    // These only ever go up, even if you backspace and fix a mistake,
+    // so "true accuracy" reflects every keystroke you actually made.
+    let totalKeystrokes = 0;
+    let totalCorrectKeystrokes = 0;
 
     // How many extra words to keep buffered ahead of the cursor
     const BUFFER_WORDS = 40;
@@ -268,17 +278,29 @@
         }
     }
 
+    function isTimeUp() {
+        return !isForever && timeLeft <= 0;
+    }
+
+    function getElapsed() {
+        return isForever ? elapsedSeconds : (maxTime - timeLeft);
+    }
+
     function updateStats() {
-        let wpm = Math.round((((charIndex - mistakes) / 5) / (maxTime - timeLeft)) * 60);
+        let elapsed = getElapsed();
+        let wpm = Math.round((((charIndex - mistakes) / 5) / elapsed) * 60);
         wpm = wpm < 0 || !wpm || wpm === Infinity ? 0 : wpm;
         wpmSpan.innerText = wpm;
 
         let acc = Math.round(((charIndex - mistakes) / charIndex) * 100);
         accuracySpan.innerText = charIndex === 0 ? 100 : (acc < 0 ? 0 : acc);
+
+        let trueAcc = Math.round((totalCorrectKeystrokes / totalKeystrokes) * 100);
+        trueAccuracySpan.innerText = totalKeystrokes === 0 ? 100 : (trueAcc < 0 ? 0 : trueAcc);
     }
 
     function handleBackspace() {
-        if (timeLeft <= 0) return;
+        if (isTimeUp()) return;
         if (charIndex > 0) {
             let characters = textDisplay.querySelectorAll('span');
             characters[charIndex].classList.remove('current');
@@ -304,20 +326,30 @@
         let characters = textDisplay.querySelectorAll('span');
         let typedChar = inputField.value.split("")[inputField.value.length - 1];
 
-        if (timeLeft > 0) {
+        if (!isTimeUp()) {
             if (!isTyping) {
                 timer = setInterval(startTimer, 1000);
                 isTyping = true;
             }
 
             if (typedChar != null) {
+                const alreadyCounted = characters[charIndex].dataset.trueCounted === 'true';
                 if (characters[charIndex].innerText === typedChar) {
+                    if (!alreadyCounted) {
+                        totalKeystrokes++;
+                        totalCorrectKeystrokes++;
+                        characters[charIndex].dataset.trueCounted = 'true';
+                    }
                     if (characters[charIndex].dataset.everWrong === 'true') {
                         characters[charIndex].classList.add('corrected');
                     } else {
                         characters[charIndex].classList.add('correct');
                     }
                 } else {
+                    if (!alreadyCounted) {
+                        totalKeystrokes++;
+                        characters[charIndex].dataset.trueCounted = 'true';
+                    }
                     mistakes++;
                     characters[charIndex].classList.add('incorrect');
                     characters[charIndex].dataset.everWrong = 'true';
@@ -344,7 +376,10 @@
     }
 
     function startTimer() {
-        if (timeLeft > 0) {
+        if (isForever) {
+            elapsedSeconds++;
+            timeSpan.innerText = elapsedSeconds;
+        } else if (timeLeft > 0) {
             timeLeft--;
             timeSpan.innerText = timeLeft;
         } else {
@@ -356,21 +391,31 @@
     function resetGame() {
         clearInterval(timer);
         timeLeft = maxTime;
+        elapsedSeconds = 0;
         charIndex = 0;
         mistakes = 0;
+        totalKeystrokes = 0;
+        totalCorrectKeystrokes = 0;
         isTyping = false;
         inputField.value = "";
-        timeSpan.innerText = timeLeft;
+        timeSpan.innerText = isForever ? 0 : timeLeft;
         wpmSpan.innerText = 0;
         accuracySpan.innerText = 100;
+        trueAccuracySpan.innerText = 100;
         initText();
         inputField.focus();
     }
 
-    function selectTimer(seconds) {
-        maxTime = seconds;
+    function selectTimer(value) {
+        if (value === 'forever') {
+            isForever = true;
+            maxTime = Infinity;
+        } else {
+            isForever = false;
+            maxTime = value;
+        }
         timerOptions.forEach(btn => {
-            btn.classList.toggle('active', parseInt(btn.dataset.time, 10) === seconds);
+            btn.classList.toggle('active', btn.dataset.time === String(value));
         });
         resetGame();
     }
@@ -380,7 +425,10 @@
     inputField.addEventListener('keydown', handleKeydown);
     restartBtn.addEventListener('click', resetGame);
     timerOptions.forEach(btn => {
-        btn.addEventListener('click', () => selectTimer(parseInt(btn.dataset.time, 10)));
+        btn.addEventListener('click', () => {
+            const val = btn.dataset.time === 'forever' ? 'forever' : parseInt(btn.dataset.time, 10);
+            selectTimer(val);
+        });
     });
     document.addEventListener('click', () => inputField.focus());
 
