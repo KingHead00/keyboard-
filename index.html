@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypeSpeed Pro</title>
+    <style>
+        :root {
+            --bg-color: #323437;
+            --main-color: #e2b714;
+            --text-color: #646669;
+            --sub-color: #d1d0c5;
+            --error-color: #ca4754;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--sub-color);
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        #game-container {
+            max-width: 800px;
+            width: 100%;
+            padding: 20px;
+        }
+
+        #stats {
+            display: flex;
+            gap: 20px;
+            font-size: 1.5rem;
+            color: var(--main-color);
+            margin-bottom: 20px;
+        }
+
+        #text-display {
+            font-size: 1.8rem;
+            line-height: 2.4rem;
+            letter-spacing: 1px;
+            word-break: break-word;
+            position: relative;
+            user-select: none;
+            margin-bottom: 30px;
+        }
+
+        .char {
+            color: var(--text-color);
+            position: relative;
+        }
+
+        .char.correct {
+            color: var(--sub-color);
+        }
+
+        .char.incorrect {
+            color: var(--error-color);
+            background-color: rgba(202, 71, 84, 0.2);
+        }
+
+        .char.current {
+            color: var(--sub-color);
+        }
+
+        .char.current::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 2px;
+            height: 100%;
+            background-color: var(--main-color);
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        #input-field {
+            position: absolute;
+            opacity: 0;
+            z-index: -1;
+        }
+
+        #restart-btn {
+            background: none;
+            border: 2px solid var(--text-color);
+            color: var(--text-color);
+            padding: 10px 20px;
+            font-size: 1rem;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+
+        #restart-btn:hover {
+            color: var(--main-color);
+            border-color: var(--main-color);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="stats">
+        <div>WPM: <span id="wpm">0</span></div>
+        <div>Accuracy: <span id="accuracy">100</span>%</div>
+        <div>Time: <span id="time">30</span>s</div>
+    </div>
+
+    <div id="text-display"></div>
+    <input type="text" id="input-field" autofocus>
+
+    <button id="restart-btn">Restart</button>
+</div>
+
+<script>
+    const quotes = [
+        "The quick brown fox jumps over the lazy dog.",
+        "Success is not final, failure is not fatal: it is the courage to continue that counts.",
+        "To be or not to be, that is the question whether tis nobler in the mind to suffer.",
+        "All that glitters is not gold, often have you heard that told.",
+        "In the middle of difficulty lies opportunity, look closer and find it."
+    ];
+
+    const textDisplay = document.getElementById('text-display');
+    const inputField = document.getElementById('input-field');
+    const wpmSpan = document.getElementById('wpm');
+    const accuracySpan = document.getElementById('accuracy');
+    const timeSpan = document.getElementById('time');
+    const restartBtn = document.getElementById('restart-btn');
+
+    let timer = null;
+    let maxTime = 30;
+    let timeLeft = maxTime;
+    let isTyping = false;
+    let charIndex = 0;
+    let mistakes = 0;
+
+    function initText() {
+        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
+        textDisplay.innerHTML = "";
+        randomQuote.split("").forEach(char => {
+            let span = `<span>${char}</span>`;
+            textDisplay.innerHTML += span;
+        });
+        textDisplay.querySelectorAll('span')[0].classList.add('current', 'char');
+        // Add char class to all spans
+        textDisplay.querySelectorAll('span').forEach(s => s.classList.add('char'));
+    }
+
+    function initTyping() {
+        const characters = textDisplay.querySelectorAll('span');
+        let typedChar = inputField.value.split("")[charIndex];
+
+        if (charIndex < characters.length && timeLeft > 0) {
+            if (!isTyping) {
+                timer = setInterval(startTimer, 1000);
+                isTyping = true;
+            }
+
+            if (typedChar == null) { // Backspace
+                if (charIndex > 0) {
+                    characters[charIndex].classList.remove('current');
+                    charIndex--;
+                    if (characters[charIndex].classList.contains('incorrect')) {
+                        mistakes--;
+                    }
+                    characters[charIndex].classList.remove('correct', 'incorrect');
+                    characters[charIndex].classList.add('current');
+                }
+            } else {
+                if (characters[charIndex].innerText === typedChar) {
+                    characters[charIndex].classList.add('correct');
+                } else {
+                    mistakes++;
+                    characters[charIndex].classList.add('incorrect');
+                }
+                characters[charIndex].classList.remove('current');
+                charIndex++;
+                if (charIndex < characters.length) {
+                    characters[charIndex].classList.add('current');
+                }
+            }
+
+            // Calculations
+            let wpm = Math.round((((charIndex - mistakes) / 5) / (maxTime - timeLeft)) * 60);
+            wpm = wpm < 0 || !wpm || wpm === Infinity ? 0 : wpm;
+            wpmSpan.innerText = wpm;
+
+            let acc = Math.round(((charIndex - mistakes) / charIndex) * 100);
+            accuracySpan.innerText = charIndex === 0 ? 100 : (acc < 0 ? 0 : acc);
+        } else {
+            clearInterval(timer);
+            inputField.value = "";
+        }
+    }
+
+    function startTimer() {
+        if (timeLeft > 0) {
+            timeLeft--;
+            timeSpan.innerText = timeLeft;
+        } else {
+            clearInterval(timer);
+        }
+    }
+
+    function resetGame() {
+        initText();
+        clearInterval(timer);
+        timeLeft = maxTime;
+        charIndex = 0;
+        mistakes = 0;
+        isTyping = false;
+        inputField.value = "";
+        timeSpan.innerText = timeLeft;
+        wpmSpan.innerText = 0;
+        accuracySpan.innerText = 100;
+        inputField.focus();
+    }
+
+    // Event Listeners
+    inputField.addEventListener('input', initTyping);
+    restartBtn.addEventListener('click', resetGame);
+    document.addEventListener('click', () => inputField.focus());
+
+    // Initialize
+    initText();
+</script>
+
+</body>
+</html>
